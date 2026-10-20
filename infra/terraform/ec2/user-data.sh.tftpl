@@ -1,0 +1,19 @@
+#!/bin/bash
+set -Eeuo pipefail
+
+exec > >(tee -a /var/log/user-data-bootstrap.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+dnf install -y docker curl
+install -d -m 0755 /usr/local/lib/docker/cli-plugins
+COMPOSE_VERSION="v2.32.4"
+curl --fail --show-error --silent --location --retry 5 \
+  "https://github.com/docker/compose/releases/download/$${COMPOSE_VERSION}/docker-compose-linux-x86_64" \
+  --output /usr/local/lib/docker/cli-plugins/docker-compose
+chmod 0755 /usr/local/lib/docker/cli-plugins/docker-compose
+
+systemctl enable --now docker
+docker compose version
+
+install -d -o ec2-user -g ec2-user "${project_dir}/backend"
+chown -R ec2-user:ec2-user "${project_dir}"
+chmod 0750 "${project_dir}" "${project_dir}/backend"

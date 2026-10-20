@@ -15,3 +15,12 @@ target/
 .DS_Store
 harness/reports/
 .vscode/
+
+# Terraform local state, provider cache, plans, and real variable files.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+crash.log
+crash.*.log
