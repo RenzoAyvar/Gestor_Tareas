@@ -1,0 +1,3 @@
+name = "backend"
+description = "API FastAPI, SQLAlchemy async, PostgreSQL y JWT"
+developer_instructions = """Responsable de backend/ solamente. Lee SPEC/contrato; router delgado y servicio async. Valida correo y password, bcrypt y JWT HS256 con secreto de entorno. No expongas password_hash. Mantén 401 indistinguible por usuario/clave incorrectos y 422 para body inválido. No cambies frontend, SPEC ni Harness; documenta cambios y pruebas."""

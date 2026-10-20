@@ -1,0 +1,9 @@
+# Configurar cuando existan usuarios/equipos reales con permisos de write:
+# /specs/       @mi-organizacion/arquitectura
+# /harness/     @mi-organizacion/arquitectura
+# /AGENTS.md    @mi-organizacion/arquitectura
+# /.codex/      @mi-organizacion/arquitectura
+# /.github/     @mi-organizacion/devops
+# /backend/     @mi-organizacion/backend
+# /frontend/    @mi-organizacion/frontend
+# /tests/       @mi-organizacion/qa

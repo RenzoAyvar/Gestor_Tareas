@@ -1,0 +1,76 @@
+name: CD - GHCR y despliegue aprobado
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Tag de imagen publicada por CI (sha-<40 dígitos hexadecimales>)'
+        type: string
+        required: true
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - id: tag
+        shell: bash
+        run: |
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+          echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+      - name: Login GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Construir y publicar
+        shell: bash
+        run: |
+          docker build -t "ghcr.io/${{ steps.tag.outputs.owner }}/evaluacion2-backend:${{ steps.tag.outputs.image_tag }}" ./backend
+          docker build --target production -t "ghcr.io/${{ steps.tag.outputs.owner }}/evaluacion2-frontend:${{ steps.tag.outputs.image_tag }}" ./frontend
+          docker push "ghcr.io/${{ steps.tag.outputs.owner }}/evaluacion2-backend:${{ steps.tag.outputs.image_tag }}"
+          docker push "ghcr.io/${{ steps.tag.outputs.owner }}/evaluacion2-frontend:${{ steps.tag.outputs.image_tag }}"
+
+  deploy:
+    # Deploy manual solamente: requiere tag previamente publicado desde CI aprobado.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - name: SSH seguro y despliegue remoto
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          OWNER_RAW: ${{ github.repository_owner }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_HOST:?Falta DEPLOY_HOST}"
+          : "${DEPLOY_USER:?Falta DEPLOY_USER}"
+          : "${DEPLOY_SSH_KEY:?Falta DEPLOY_SSH_KEY}"
+          : "${DEPLOY_KNOWN_HOSTS:?Falta DEPLOY_KNOWN_HOSTS}"
+          [[ "$IMAGE_TAG" =~ ^sha-[a-fA-F0-9]{40}$ ]] || { echo 'Tag SHA inválido'; exit 1; }
+          GHCR_OWNER="$(echo "$OWNER_RAW" | tr '[:upper:]' '[:lower:]')"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+          ssh -o StrictHostKeyChecking=yes "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd /opt/evaluacion-2 && GHCR_OWNER='$GHCR_OWNER' IMAGE_TAG='$IMAGE_TAG' docker compose --env-file .env -f compose.prod.yml pull && GHCR_OWNER='$GHCR_OWNER' IMAGE_TAG='$IMAGE_TAG' docker compose --env-file .env -f compose.prod.yml up -d --remove-orphans"

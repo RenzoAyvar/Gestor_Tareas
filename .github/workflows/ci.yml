@@ -1,0 +1,70 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  spec:
+    name: Harness SPEC
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python harness/scripts/verify.py --scope spec
+
+  backend:
+    name: Backend / PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci_password_only
+          POSTGRES_DB: ci_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://ci:ci_password_only@localhost:5432/ci_db
+      JWT_SECRET: ci-only-secret-not-for-production-123456
+      TESTING: '1'
+      DEV_CREATE_TABLES: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Instalar dependencias
+        run: python -m pip install -r backend/requirements.txt
+      - name: Harness backend
+        run: python harness/scripts/verify.py --scope backend
+
+  frontend:
+    name: Frontend / Vitest / Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Instalación reproducible
+        run: npm ci
+        working-directory: frontend
+      - name: Harness frontend
+        run: python harness/scripts/verify.py --scope frontend
