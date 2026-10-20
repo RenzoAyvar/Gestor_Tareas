@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import router as auth_router
+from app.api.tasks import router as tasks_router
 from app.db.session import engine
 from app.models.user import Base
 
@@ -16,13 +17,19 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
-app = FastAPI(title="Evaluación 2 - Login API", lifespan=lifespan)
+app = FastAPI(title="Evaluación 2 - MiniTask API", lifespan=lifespan)
 
 # El frontend local usa proxy de Vite; dominios externos se configuran explícitamente.
 origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 if origins:
-    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["POST"], allow_headers=["Content-Type"])
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 app.include_router(auth_router)
+app.include_router(tasks_router)
 
 @app.get("/health", tags=["Operación"])
 async def health():

@@ -1,5 +1,5 @@
 {
-  "AC-001": ["frontend/src/App.test.jsx::muestra planificador luego del login", "backend/tests/test_auth_endpoint.py::test_login_200"],
+  "AC-001": ["frontend/src/App.test.jsx::muestra MiniTask luego del login", "backend/tests/test_auth_endpoint.py::test_login_200"],
   "AC-002": ["frontend/src/api/authApi.test.js::mapea 401", "backend/tests/test_auth_endpoint.py::test_login_401_password"],
   "AC-003": ["frontend/src/components/LoginForm.test.jsx::no envía campos vacíos"],
   "AC-004": ["frontend/src/hooks/useTheme.test.jsx::persiste el tema"],

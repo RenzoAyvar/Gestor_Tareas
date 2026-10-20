@@ -7,6 +7,10 @@ from app.services.auth_service import authenticate
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
+
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> LoginResponse:
+async def login(
+    payload: LoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> LoginResponse:
     return await authenticate(payload, db)

@@ -1,0 +1,114 @@
+# Especificación Técnica orientada a IA: Sistema de Login
+
+## 1. Metadatos y Tech Stack
+
+**Objetivo:** Autenticar con correo y contraseña contra PostgreSQL, emitir un JWT para las demás funcionalidades y permitir el acceso a MiniTask. Incluye tema dark/light.
+
+**Backend Stack:** Python 3.11, FastAPI 0.115.6, SQLAlchemy 2.0.36 + asyncpg, PostgreSQL 16, passlib[bcrypt] 1.7.4, python-jose 3.3.0, Pydantic 2.10.4 y pytest 8.3.4. Contenedor `backend`.
+
+**Frontend Stack:** React 18.3.1, JavaScript (JSX), Vite 5.4, TailwindCSS 3.4, Fetch API y Vitest 2.1.9. Contenedor `frontend`.
+
+## 2. Archivos Involucrados (Rutas / Paths)
+
+El Agente puede leer el repositorio y modificar únicamente estas rutas para cambios funcionales del login:
+
+**Backend:**
+- [EDITAR] `backend/app/api/auth.py` (Router `POST /auth/login`, sin lógica de negocio).
+- [EDITAR] `backend/app/models/schemas.py` (`LoginRequest` y `LoginResponse`).
+- [EDITAR] `backend/app/services/auth_service.py` (consulta, bcrypt y JWT).
+- [EDITAR] `backend/app/core/security.py` (bcrypt/JWT).
+- [EDITAR] `backend/tests/test_auth_endpoint.py` (contrato HTTP con PostgreSQL).
+
+**Frontend:**
+- [EDITAR] `frontend/src/api/authApi.js` (Fetch y `AuthError`).
+- [EDITAR] `frontend/src/hooks/useLogin.js` (sesión solo en memoria).
+- [EDITAR] `frontend/src/validation/validateLogin.js`.
+- [EDITAR] `frontend/src/components/LoginForm.jsx`.
+- [EDITAR] `frontend/src/hooks/useTheme.js`.
+- [EDITAR] `frontend/src/components/ThemeToggle.jsx`.
+- [EDITAR] `frontend/src/index.css`.
+- [EDITAR] pruebas `frontend/src/**/*.test.*` relacionadas con login y tema.
+
+**Trazabilidad:**
+- [EDITAR] `specs/auth/traceability.json`.
+
+## 3. Flujo del Sistema
+
+```mermaid
+sequenceDiagram
+    participant UI as LoginForm.jsx
+    participant Service as authApi.js
+    participant API as auth.py
+    participant DB as PostgreSQL (users)
+    UI->>UI: validateLogin(correo, password)
+    UI->>Service: login({correo, password})
+    Service->>API: POST /auth/login
+    API->>DB: buscar correo normalizado
+    DB-->>API: password_hash
+    API->>API: validar bcrypt
+    alt Éxito
+        API-->>Service: 200 {correo, token, token_type}
+        Service-->>UI: token en memoria y mostrar MiniTask
+    else Error
+        API-->>Service: 401 genérico
+        Service-->>UI: mensaje seguro
+    end
+```
+
+## 4. Reglas de Negocio (Business Logic)
+
+**Validación Frontend:**
+- Campos obligatorios: `El correo es obligatorio.` / `La contraseña es obligatoria.`
+- Espacios en correo: `El correo no debe contener espacios en blanco.`
+- Formato inválido: `Ingresá un correo válido.`
+- No llamar al backend si hay errores.
+- Durante el envío mostrar `Iniciando sesión…` y deshabilitar el botón.
+
+**Validación Backend:**
+- Campos ausentes/vacíos o correo con cualquier whitespace devuelven 422.
+- El correo válido se normaliza con `strip().lower()`.
+- Bcrypt valida la contraseña; usuario inexistente y clave incorrecta devuelven el mismo 401.
+
+**Token y tema:**
+- JWT firmado con `JWT_SECRET`, HS256 y expiración `JWT_EXPIRE_MINUTES` (60 por defecto).
+- El JWT vive solo en estado React; nunca en localStorage, sessionStorage o cookies.
+- El tema usa `data-theme` y persiste únicamente `localStorage["practica-1:theme"]`.
+
+**Errores UI:**
+
+| Caso | Mensaje |
+|---|---|
+| Error de red | `No se pudo conectar con el servidor.` |
+| HTTP 400/401 | `Correo o contraseña incorrectos.` |
+| Otro error | `No se pudo iniciar sesión. Intentá de nuevo.` |
+
+## 5. El Contrato (API Contract)
+
+**Ruta:** `POST /auth/login`  
+**Content-Type:** `application/json`
+
+**Request:** `{"correo":"admin@practica.com","password":"admin123"}`
+
+**200:** `{"correo":"admin@practica.com","token":"JWT","token_type":"bearer"}`
+
+**401:** `{"detail":"Correo o contraseña incorrectos."}`
+
+**422:** detalle estándar FastAPI tipo array para campos ausentes, vacíos o whitespace en correo.
+
+Nunca incluir `password_hash`, password, `JWT_SECRET` ni detalles internos en respuestas.
+
+## 6. Instrucciones de Ejecución para el Agente (Criterios)
+
+1. **`backend`:** router delgado, servicio asíncrono y PostgreSQL real en integración.
+2. **`frontend`:** Fetch, validación previa, accesibilidad, sesión en memoria y tema persistente.
+3. **`qa`:** cubrir 200, dos variantes de 401, 422, navegación, tema y no persistencia del token.
+4. **`devops`:** secretos por entorno y validación mediante Harness.
+
+**Criterios de aceptación:**
+- ✅ AC-001: login correcto permite acceder a MiniTask.
+- ✅ AC-002: contraseña incorrecta muestra el mensaje genérico.
+- ✅ AC-003: campos vacíos muestran errores sin llamar al backend.
+- ✅ AC-004: el tema dark/light sobrevive a recarga.
+- ✅ AC-005: usuario inexistente devuelve 401 sin revelar su inexistencia.
+- ✅ AC-006: body inválido o correo con espacios devuelve 422.
+- ✅ AC-007: JWT HS256 expira en 60 minutos y permanece solo en memoria.

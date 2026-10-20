@@ -10,6 +10,10 @@ export default defineConfig({
         target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,
       },
+      '/tasks': {
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
   test: { environment: 'jsdom', setupFiles: ['./src/test/setup.js'], globals: true },

@@ -1,0 +1,106 @@
+# Especificación Técnica orientada a IA: MiniTask
+
+## 1. Metadatos y Tech Stack
+
+**Objetivo:** Permitir que cada usuario autenticado registre, consulte, filtre, actualice y elimine tareas académicas. Los datos se guardan localmente en un archivo JSON persistido por Docker.
+
+**Backend Stack:** Python 3.11, FastAPI 0.115.6, Pydantic 2.10.4, python-jose 3.3.0 y pytest 8.3.4. Contenedor `backend`.
+
+**Frontend Stack:** React 18.3.1, JavaScript (JSX), Vite 5.4, TailwindCSS 3.4, Fetch API y Vitest 2.1.9. Contenedor `frontend`.
+
+## 2. Archivos Involucrados (Rutas / Paths)
+
+El Agente puede leer el repositorio y modificar únicamente estas rutas para MiniTask:
+
+**Backend:**
+- [NUEVO] `backend/app/api/tasks.py` (API REST y autenticación JWT).
+- [NUEVO] `backend/app/models/task_schemas.py` (esquemas y validaciones).
+- [NUEVO] `backend/app/services/task_service.py` (reglas de negocio).
+- [NUEVO] `backend/app/repositories/json_task_repository.py` (persistencia JSON).
+- [EDITAR] `backend/app/core/security.py` (validar JWT).
+- [EDITAR] `backend/app/main.py` (registrar router).
+- [NUEVO] `backend/tests/test_tasks_endpoint.py` (contrato HTTP).
+
+**Frontend:**
+- [NUEVO] `frontend/src/api/tasksApi.js` (Fetch y mapeo de errores).
+- [NUEVO] `frontend/src/hooks/useTasks.js` (estado y operaciones).
+- [NUEVO] `frontend/src/validation/validateTask.js` (validación pura).
+- [NUEVO] `frontend/src/components/TaskForm.jsx`.
+- [NUEVO] `frontend/src/components/TaskDashboard.jsx`.
+- [EDITAR] `frontend/src/App.jsx` y `frontend/src/index.css`.
+- [NUEVO/EDITAR] pruebas `frontend/src/**/*.test.*` relacionadas con MiniTask.
+
+**Infraestructura y trazabilidad:**
+- [EDITAR] `docker-compose.yml` y `compose.prod.yml` (volumen JSON).
+- [NUEVO] `specs/tasks/traceability.json`.
+
+## 3. Flujo del Sistema
+
+```mermaid
+sequenceDiagram
+    participant UI as TaskDashboard.jsx
+    participant APIClient as tasksApi.js
+    participant API as tasks.py
+    participant Store as tasks.json
+    UI->>APIClient: crear/listar/actualizar/eliminar + JWT
+    APIClient->>API: HTTP /tasks Authorization Bearer
+    API->>API: validar JWT y obtener correo
+    API->>Store: operación para el usuario autenticado
+    Store-->>API: tareas actualizadas
+    API-->>UI: respuesta JSON o error comprensible
+```
+
+## 4. Reglas de Negocio (Business Logic)
+
+**Tareas:**
+- Título obligatorio, sin espacios vacíos y máximo 120 caracteres.
+- Descripción obligatoria, sin espacios vacíos y máximo 1000 caracteres.
+- Fecha límite opcional en formato `YYYY-MM-DD`.
+- Una tarea nueva inicia como pendiente.
+- Los filtros válidos son `all`, `pending` y `completed`.
+- Cada usuario solo puede consultar y modificar sus propias tareas.
+
+**Persistencia y seguridad:**
+- `TASKS_FILE` define el archivo; por defecto se usa `backend/data/tasks.json`.
+- Escritura atómica y acceso serializado para evitar JSON parcial.
+- Docker persiste `/data/tasks.json` en un volumen dedicado.
+- Todos los endpoints requieren JWT HS256 válido; el token sigue solo en memoria React.
+
+**Errores UI:**
+
+| Caso | Mensaje |
+|---|---|
+| Título vacío | `El título es obligatorio.` |
+| Descripción vacía | `La descripción es obligatoria.` |
+| Error de red | `No se pudo conectar con el servidor.` |
+| Otro error | `No se pudo completar la operación. Intentá de nuevo.` |
+
+## 5. El Contrato (API Contract)
+
+Todas las rutas usan `Authorization: Bearer <JWT>`.
+
+- `GET /tasks?status=all|pending|completed` → `200` lista de tareas.
+- `POST /tasks` con `{"titulo":"Leer capítulo 3","descripcion":"Preparar resumen","fecha_limite":"2026-10-30"}` → `201` tarea creada.
+- `PATCH /tasks/{id}` con `{"completada":true}` → `200` tarea actualizada.
+- `DELETE /tasks/{id}` → `204` sin body.
+- JWT ausente o inválido → `401 {"detail":"No autenticado."}`.
+- Tarea inexistente o ajena → `404 {"detail":"Tarea no encontrada."}`.
+- Body o filtro inválido → `422` estándar FastAPI.
+
+Una tarea responde con `id`, `titulo`, `descripcion`, `fecha_limite`, `completada` y `creada_en`. Nunca expone el propietario interno.
+
+## 6. Instrucciones de Ejecución para el Agente (Criterios)
+
+1. **`backend`:** API delgada, servicio asíncrono y repositorio JSON atómico.
+2. **`frontend`:** UI responsive, Fetch, validaciones previas y estados de carga/error/vacío.
+3. **`qa`:** probar aislamiento por usuario, CRUD, filtros, validaciones y persistencia.
+4. **`devops`:** volumen persistente y secretos fuera del repositorio.
+
+**Criterios de aceptación:**
+- ✅ MT-001: login correcto muestra MiniTask.
+- ✅ MT-002: se crea una tarea válida y persiste en JSON.
+- ✅ MT-003: se listan y filtran tareas por estado.
+- ✅ MT-004: una tarea alterna entre completada y pendiente.
+- ✅ MT-005: una tarea puede eliminarse.
+- ✅ MT-006: entradas inválidas no llaman al backend y muestran mensajes comprensibles.
+- ✅ MT-007: JWT inválido obtiene 401 y cada usuario ve solo sus tareas.

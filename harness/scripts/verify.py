@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Harness verificable sin librerías externas: SPEC -> backend -> frontend -> reporte."""
+"""Harness verificable sin librerías externas: SPEC modular -> backend -> frontend."""
 import argparse
 import json
 import subprocess
@@ -8,34 +8,46 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC_DIR = ROOT / 'specs/001-login'
-REQUIRED = ['spec.md', 'contract.md', 'plan.md', 'tasks.md', 'traceability.json']
+SPEC_MODULES = (
+    ('auth', 'login.scps', tuple(f'AC-{i:03d}' for i in range(1, 8))),
+    ('tasks', 'minitask.scps', tuple(f'MT-{i:03d}' for i in range(1, 8))),
+)
 
 
 def check_spec():
     failures = []
-    for f in REQUIRED:
-        if not (SPEC_DIR / f).is_file():
-            failures.append(f'Falta especificación: {f}')
-    if failures:
-        return failures
-    contents = (SPEC_DIR / 'spec.md').read_text(encoding='utf-8')
-    try:
-        traceability = json.loads((SPEC_DIR / 'traceability.json').read_text(encoding='utf-8'))
-    except (ValueError, OSError) as exc:
-        return [f'Trazabilidad no válida: {exc}']
-    for i in range(1, 8):
-        key = f'AC-{i:03d}'
-        if key not in contents:
-            failures.append(f'{key} no está en spec.md')
-        refs = traceability.get(key, [])
-        if not isinstance(refs, list) or len(refs) < 1:
-            failures.append(f'{key} sin referencia de test')
+    for module, spec_name, criteria in SPEC_MODULES:
+        module_dir = ROOT / 'specs' / module
+        spec_file = module_dir / spec_name
+        trace_file = module_dir / 'traceability.json'
+        if not spec_file.is_file():
+            failures.append(f'Falta especificación: specs/{module}/{spec_name}')
             continue
-        for ref in refs:
-            file = ref.split('::', 1)[0]
-            if not (ROOT / file).is_file():
-                failures.append(f'{key} apunta a archivo inexistente: {file}')
+        if not trace_file.is_file():
+            failures.append(f'Falta trazabilidad: specs/{module}/traceability.json')
+            continue
+        contents = spec_file.read_text(encoding='utf-8')
+        if len(contents.splitlines()) > 150:
+            failures.append(f'{spec_file.relative_to(ROOT)} supera 150 líneas')
+        try:
+            traceability = json.loads(trace_file.read_text(encoding='utf-8'))
+        except (ValueError, OSError) as exc:
+            failures.append(f'Trazabilidad no válida en {module}: {exc}')
+            continue
+        for key in criteria:
+            if key not in contents:
+                failures.append(f'{key} no está en {spec_name}')
+            refs = traceability.get(key, [])
+            if not isinstance(refs, list) or not refs:
+                failures.append(f'{key} sin referencia de test')
+                continue
+            for ref in refs:
+                file, _, scenario = ref.partition('::')
+                test_file = ROOT / file
+                if not test_file.is_file():
+                    failures.append(f'{key} apunta a archivo inexistente: {file}')
+                elif scenario and scenario not in test_file.read_text(encoding='utf-8'):
+                    failures.append(f'{key} apunta a escenario inexistente: {ref}')
     return failures
 
 

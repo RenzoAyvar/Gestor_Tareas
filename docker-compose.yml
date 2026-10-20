@@ -10,30 +10,44 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
+      timeout: 5s
       retries: 15
 
   backend:
     build:
       context: ./backend
+    env_file:
+      - ./backend/.env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      JWT_SECRET: ${JWT_SECRET:?}
-      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
-      DEV_CREATE_TABLES: ${DEV_CREATE_TABLES:-true}
+      TASKS_FILE: /data/tasks.json
     volumes:
       - ./backend/app:/code/app
       - ./backend/scripts:/code/scripts
+      - minitask_data:/data
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
 
   frontend:
     build:
       context: ./frontend
       target: development
+    env_file:
+      - ./frontend/.env
     environment:
       VITE_PROXY_TARGET: http://backend:8000
     volumes:
@@ -42,8 +56,16 @@ services:
     ports:
       - "5173:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5173/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
 
 volumes:
   postgres_data:
   frontend_modules:
+  minitask_data:

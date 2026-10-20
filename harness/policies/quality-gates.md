@@ -1,8 +1,9 @@
 # Quality Gates (v1)
 
 ## G0 — Contrato y trazabilidad
-- Deben existir `spec.md`, `plan.md`, `tasks.md`, `contract.md` y trazabilidad AC-001...AC-007.
-- Cada criterio de aceptación debe enlazar a uno o más archivos de prueba existentes.
+- Cada módulo debe tener `specs/<módulo>/<nombre>.scps` (máximo 150 líneas) y su `traceability.json`.
+- Login debe cubrir AC-001...AC-007 y MiniTask MT-001...MT-007.
+- Cada criterio de aceptación debe enlazar a uno o más archivos y escenarios de prueba existentes.
 - El agente debe leer SPEC antes de programar. Cambios al contrato requieren PR explícito.
 
 ## G1 — Backend

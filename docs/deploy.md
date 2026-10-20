@@ -10,7 +10,7 @@ GitHub Actions `CI` corre en PR y `main` tres gates: SPEC, backend+Postgres 16 y
 
 ## 3. Configuración del servidor (requisito antes de activar deploy)
 
-Servidor Linux con Docker Engine + Compose y SSH. Preparar `/opt/evaluacion-2/compose.prod.yml` (de este repo) y `/opt/evaluacion-2/.env` basado en `.env.production.example`, con secretos privados y permisos restringidos; no subir `.env` al repositorio. DNS/TLS y HTTPS con proxy externo o gateway gestionado (el ejemplo escucha 8080 HTTP, NO es un endpoint HTTPS listo para Internet).
+Servidor Linux con Docker Engine + Compose y SSH. Preparar `/opt/evaluacion-2/.env` desde `.env.production.example` para PostgreSQL y `/opt/evaluacion-2/backend/.env` desde `backend/.env.production.example` para JWT. Ambos deben tener secretos privados, permisos restringidos y permanecer fuera de Git. Preparar también `compose.prod.yml`. DNS/TLS y HTTPS requieren un proxy externo o gateway gestionado.
 
 - Crear imágenes accesibles desde el servidor (hacer público GHCR o autenticar el `docker` del servidor con credencial de lectura `read:packages`).
 - Configurar GitHub Environments `production` con aprobadores/restricciones de ramas cuando el plan lo permita.
@@ -19,7 +19,7 @@ Servidor Linux con Docker Engine + Compose y SSH. Preparar `/opt/evaluacion-2/co
 
 ## 4. Bootstrap de tablas una sola vez
 
-Este proyecto de demostración no incluye migraciones Alembic. Con valores `GHCR_OWNER` / `IMAGE_TAG` exportados y con `.env` configurado, ejecutar en el servidor **antes del primer despliegue funcional**:
+Este proyecto de demostración no incluye migraciones Alembic. Con `GHCR_OWNER` / `IMAGE_TAG` exportados y ambos archivos `.env` configurados, ejecutar en el servidor **antes del primer despliegue funcional**:
 
 ```bash
 cd /opt/evaluacion-2

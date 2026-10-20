@@ -1,0 +1,9 @@
+{
+  "MT-001": ["frontend/src/App.test.jsx::muestra MiniTask luego del login"],
+  "MT-002": ["backend/tests/test_tasks_endpoint.py::test_crud_filters_and_json_persistence", "frontend/src/components/TaskDashboard.test.jsx::crea una tarea válida y actualiza la lista"],
+  "MT-003": ["backend/tests/test_tasks_endpoint.py::test_crud_filters_and_json_persistence", "frontend/src/components/TaskDashboard.test.jsx::filtra tareas por estado"],
+  "MT-004": ["backend/tests/test_tasks_endpoint.py::test_crud_filters_and_json_persistence", "frontend/src/components/TaskDashboard.test.jsx::alterna una tarea entre completada y pendiente"],
+  "MT-005": ["backend/tests/test_tasks_endpoint.py::test_crud_filters_and_json_persistence", "frontend/src/components/TaskDashboard.test.jsx::elimina una tarea"],
+  "MT-006": ["backend/tests/test_tasks_endpoint.py::test_create_rejects_invalid_body", "frontend/src/validation/validateTask.test.js::valida campos obligatorios límites y fecha", "frontend/src/components/TaskDashboard.test.jsx::no llama al backend con una tarea inválida"],
+  "MT-007": ["backend/tests/test_tasks_endpoint.py::test_all_tasks_require_valid_bearer_jwt", "backend/tests/test_tasks_endpoint.py::test_each_user_only_lists_their_own_tasks", "backend/tests/test_tasks_endpoint.py::test_foreign_task_is_not_found", "frontend/src/api/tasksApi.test.js::envía Bearer y serializa las operaciones", "frontend/src/api/tasksApi.test.js::mapea red y respuestas inválidas a errores seguros"]
+}
