@@ -1,0 +1,39 @@
+# SPEC Infra AWS EC2 — demo de Compose
+
+## Estado y objetivo
+
+Propuesta de infraestructura mínima, desechable y de demostración. Terraform crea una VPC pública dedicada y una instancia EC2 Amazon Linux 2023 x86_64 para alojar manualmente el `compose.prod.yml` existente. No implementa producción de alta disponibilidad.
+
+## Alcance y rutas
+
+- `infra/terraform/ec2/`: Terraform, bootstrap y guía operativa.
+- `compose.prod.yml`: ajustes de puerto web/separación de secretos para EC2.
+- `.gitignore`: exclusión de estado y variables locales reales.
+- `specs/infra/traceability.json`: relación de requisitos con implementación y verificación.
+- `compose.yml` de desarrollo, aplicación, Harness y workflows no se modifican por esta SPEC.
+
+## Arquitectura
+
+Una VPC pequeña, una subred pública, Internet Gateway, ruta IPv4 y Security Group. EC2 `t3.small` (configurable) con Amazon Linux 2023 x86_64, raíz EBS gp3 cifrada de 30 GiB y Elastic IP. Un perfil IAM permite administración por AWS Systems Manager Session Manager; no se abre SSH. El Security Group publica solo TCP/80. Docker y Docker Compose se instalan al iniciar; no se descargan imágenes ni se configura despliegue automático.
+
+La instancia ejecuta el Compose de producción existente: Nginx/frontend es el único servicio publicado. PostgreSQL permanece dentro de la red Compose con volumen local. El planificador aún es placeholder y no escribe `tasks.json`; no se declara una persistencia inexistente.
+
+## Secretos y operación
+
+Terraform y `user-data` no reciben secretos. El operador crea `/opt/evaluacion-2/.env` con las variables Compose y `/opt/evaluacion-2/backend/.env` con `JWT_SECRET` y configuración backend usando Session Manager. GHCR y el despliegue de imágenes permanecen manuales. El workflow CD SSH existente no forma parte de esta entrega.
+
+La región inicial es `us-east-1`; puede configurarse. HTTP/IP se considera solo demo. Restringir el CIDR HTTP cuando aplique. No hay dominio, HTTPS, RDS, NAT, balanceador, autoescalado, backend Terraform remoto ni protección contra destroy.
+
+## Criterios de aceptación de infraestructura
+
+- **INFRA-001**: Terraform crea una VPC dedicada, subnet pública, gateway y ruta IPv4.
+- **INFRA-002**: Solo TCP/80 es entrante; no hay SSH ni puertos de DB/API públicos; SSM tiene su rol/perfil.
+- **INFRA-003**: EC2 usa AL2023 x86_64, `t3.small` por defecto y EBS gp3 cifrado de 30 GiB que se borra al terminar la instancia.
+- **INFRA-004**: Bootstrap prepara Docker, Compose y `/opt/evaluacion-2`, sin desplegar imágenes ni secretos.
+- **INFRA-005**: Elastic IP y outputs dan dirección estable y URL HTTP durante la vida del entorno.
+- **INFRA-006**: `terraform destroy` elimina instancia, EIP, IAM y red; no quedan discos/snapshots retenidos por el módulo. Destruir elimina permanentemente datos y secretos locales.
+- **INFRA-007**: El Compose de desarrollo sigue intacto; Compose de producción expone frontend en 80 y obtiene JWT del archivo backend local.
+
+## Verificación
+
+La trazabilidad indica las comprobaciones propuestas. Antes de crear recursos, usar `terraform fmt -check`, `terraform validate` y revisar `terraform plan`. Después de aplicar, comprobar conectividad HTTP y acceso SSM; antes de cerrar la demo, destruir con el mismo estado/configuración y verificar recursos/IP en AWS. No se debe ejecutar `apply` automáticamente.

@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "spec": "specs/infra/aws-ec2.scps",
+  "criteria": {
+    "INFRA-001": {
+      "implementation": [
+        "infra/terraform/ec2/main.tf::aws_vpc",
+        "infra/terraform/ec2/main.tf::aws_subnet",
+        "infra/terraform/ec2/main.tf::aws_internet_gateway",
+        "infra/terraform/ec2/main.tf::aws_route_table"
+      ],
+      "verification": [
+        "terraform validate",
+        "Review terraform plan network resources"
+      ]
+    },
+    "INFRA-002": {
+      "implementation": [
+        "infra/terraform/ec2/main.tf::aws_security_group",
+        "infra/terraform/ec2/main.tf::aws_iam_role",
+        "infra/terraform/ec2/main.tf::aws_iam_role_policy_attachment"
+      ],
+      "verification": [
+        "Review terraform plan ingress and IAM resources",
+        "Verify SSM Session Manager access"
+      ]
+    },
+    "INFRA-003": {
+      "implementation": [
+        "infra/terraform/ec2/main.tf::aws_instance",
+        "infra/terraform/ec2/variables.tf::instance_type",
+        "infra/terraform/ec2/variables.tf::root_volume_size"
+      ],
+      "verification": [
+        "Review terraform plan instance architecture and EBS settings"
+      ]
+    },
+    "INFRA-004": {
+      "implementation": [
+        "infra/terraform/ec2/user-data.sh.tftpl",
+        "infra/terraform/ec2/README.md::Bootstrap and manual deployment"
+      ],
+      "verification": [
+        "Inspect instance cloud-init output after apply",
+        "Confirm no image deployment or secrets are present in user-data"
+      ]
+    },
+    "INFRA-005": {
+      "implementation": [
+        "infra/terraform/ec2/main.tf::aws_eip",
+        "infra/terraform/ec2/outputs.tf"
+      ],
+      "verification": [
+        "Compare outputs with EC2 Elastic IP and HTTP response"
+      ]
+    },
+    "INFRA-006": {
+      "implementation": [
+        "infra/terraform/ec2/main.tf::aws_instance.root_block_device",
+        "infra/terraform/ec2/README.md::Destroy and cost control"
+      ],
+      "verification": [
+        "Run terraform destroy with the original state and variables",
+        "Confirm no instance, Elastic IP, EBS volume, snapshot, or module networking resources remain"
+      ]
+    },
+    "INFRA-007": {
+      "implementation": [
+        "compose.yml",
+        "compose.prod.yml"
+      ],
+      "verification": [
+        "Review production port mapping and backend env_file",
+        "Review diff to confirm compose.yml is unchanged"
+      ]
+    }
+  }
+}
