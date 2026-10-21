@@ -85,7 +85,7 @@ Para backend sin Docker, configurar `DATABASE_URL` y ejecutar Uvicorn con `--env
 ## CD / despliegue
 
 - `cd.yml`: al hacer push a `main`, crea y publica imágenes de backend/frontend en GitHub Container Registry (GHCR); esto **no despliega por sí solo a un servidor**.
-- Despliegue real: ejecución manual `workflow_dispatch` indicando `image_tag=sha-<commit>` previamente publicado por CI, entorno `production` y secrets `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`; en el servidor se requieren Docker, `compose.prod.yml`, `.env` para PostgreSQL y `backend/.env` para JWT. También necesitará autenticar GHCR para leer imágenes privadas.
+- Despliegue real: ejecución manual `workflow_dispatch` indicando `image_tag=sha-<commit>` previamente publicado por CI y usando el environment `production`. GitHub obtiene credenciales temporales mediante OIDC y despliega en la EC2 con SSM Run Command; requiere las variables `AWS_ROLE_ARN`, `AWS_REGION` y `EC2_INSTANCE_ID`. El comando remoto prepara Docker/Compose y genera los `.env` locales cuando faltan. GHCR debe ser público o estar autenticado previamente en el servidor para leer imágenes privadas.
 - Configurar `production` en GitHub Settings > Environments con revisores y restricciones adecuadas (según disponibilidad del plan).
 - Ver instrucciones y lista exacta en `docs/deploy.md`.
 

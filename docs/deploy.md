@@ -8,37 +8,31 @@ GitHub Actions `CI` corre en PR y `main` tres gates: SPEC, backend+Postgres 16 y
 
 `CD - GHCR y despliegue aprobado` publica imágenes `ghcr.io/<owner>/evaluacion2-{backend,frontend}:sha-<commit>` cuando CI de `main` termina exitoso. El `workflow_dispatch` manual solo despliega una imagen **ya publicada**. Publicar **no es desplegar** al servidor. Los paquetes pueden ser privados; Docker del servidor necesitará `docker login ghcr.io` autorizado.
 
-## 3. Configuración del servidor (requisito antes de activar deploy)
+## 3. Acceso AWS del workflow y servidor administrado
 
-Servidor Linux con Docker Engine + Compose y SSH. Preparar `/opt/evaluacion-2/.env` desde `.env.production.example` para PostgreSQL y `/opt/evaluacion-2/backend/.env` desde `backend/.env.production.example` para JWT. Ambos deben tener secretos privados, permisos restringidos y permanecer fuera de Git. Preparar también `compose.prod.yml`. DNS/TLS y HTTPS requieren un proxy externo o gateway gestionado.
+El despliegue no usa SSH ni claves permanentes de AWS. El job `deploy` solicita credenciales temporales mediante GitHub OIDC y ejecuta un documento `AWS-RunShellScript` sobre una única EC2 administrada por Systems Manager. Configurar GitHub Environment `production` con aprobación humana y restricción a `main`.
 
-- Crear imágenes accesibles desde el servidor (hacer público GHCR o autenticar el `docker` del servidor con credencial de lectura `read:packages`).
-- Configurar GitHub Environments `production` con aprobadores/restricciones de ramas cuando el plan lo permita.
-- Crear **environment secrets**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (clave privada del usuario de despliegue), `DEPLOY_KNOWN_HOSTS` (huella SSH obtenida/verificada **fuera de banda**, nunca confiar ciegamente en ssh-keyscan del propio workflow).
-- Preparar permisos del usuario remoto para Docker, acceso a `/opt/evaluacion-2` y puerto expuesto.
+- La EC2 debe aparecer `Online` en SSM y su perfil debe incluir `AmazonSSMManagedInstanceCore`.
+- El rol OIDC debe confiar únicamente en `repo:RenzoAyvar/Gestor_Tareas:environment:production` y permitir `ssm:SendCommand` sobre la instancia objetivo y `AWS-RunShellScript`, además de las lecturas necesarias para consultar el estado del comando.
+- Crear las **environment variables** `AWS_ROLE_ARN`, `AWS_REGION` y `EC2_INSTANCE_ID`. El ARN del rol no es un secreto; no se almacenan Access Keys en GitHub.
+- Crear imágenes accesibles desde el servidor: hacer públicos los paquetes GHCR o autenticar Docker previamente con una credencial de lectura. El workflow no transporta tokens GHCR dentro de comandos SSM.
 
-## 4. Bootstrap de tablas una sola vez
+El comando remoto instala Docker/Compose si faltan, actualiza `compose.prod.yml` desde el commit del workflow y crea `/opt/evaluacion-2/.env` y `/opt/evaluacion-2/backend/.env` con secretos aleatorios solo cuando esos archivos todavía no existen. Los conserva en despliegues posteriores, con modo `0600`, y nunca imprime sus valores.
 
-Este proyecto de demostración no incluye migraciones Alembic. Con `GHCR_OWNER` / `IMAGE_TAG` exportados y ambos archivos `.env` configurados, ejecutar en el servidor **antes del primer despliegue funcional**:
+## 4. Bootstrap de tablas y usuario inicial
+
+Este proyecto de demostración no incluye migraciones Alembic. En el primer `workflow_dispatch`, seleccionar `initialize_schema=true`; en despliegues posteriores dejarlo en `false`. La creación del usuario continúa siendo una operación separada e interactiva mediante SSM/Session Manager, para no transportar su contraseña en inputs, logs o parámetros de Run Command:
 
 ```bash
 cd /opt/evaluacion-2
 export GHCR_OWNER='nombre-owner-github-en-minusculas'
 export IMAGE_TAG='sha-COMMIT_PUBLICADO'
-docker compose --env-file .env -f compose.prod.yml up -d db
-# Crea las tablas explícitamente; en producción madura usar migraciones.
-docker compose --env-file .env -f compose.prod.yml run --rm -e ALLOW_SCHEMA_INIT=yes backend python -m scripts.init_schema
-```
-
-El comando anterior requiere que la imagen de backend ya esté publicada y accesible. Crear primer usuario por CLI interactiva si procede, sin credenciales hardcodeadas:
-
-```bash
 docker compose --env-file .env -f compose.prod.yml run --rm backend python -m scripts.create_user --correo admin@practica.com
 ```
 
 ## 5. Despliegue manual protegido
 
-En GitHub Actions seleccionar `CD - GHCR y despliegue aprobado` → Run workflow sobre `main` → indicar `image_tag=sha-<SHA del commit>` de la imagen publicada por CI. Tras la aprobación del environment `production`, se conecta mediante SSH con verificación de host y ejecuta `docker compose pull` + `up -d` en `/opt/evaluacion-2`. Si el servidor o los secretos faltan, falla explícitamente. **No simula éxito**.
+En GitHub Actions seleccionar `CD - GHCR y despliegue aprobado` → Run workflow sobre `main` → indicar `image_tag=sha-<SHA del commit>` de la imagen publicada por CI. En el primer despliegue marcar también `initialize_schema`. Tras aprobar el environment `production`, GitHub asume el rol OIDC, comprueba que la EC2 esté `Online`, envía el despliegue por SSM y espera su resultado. Si la autorización, la instancia, GHCR o los contenedores fallan, el job muestra la salida remota y termina con error. **No simula éxito**.
 
 ## Riesgos pendientes antes de producción
 

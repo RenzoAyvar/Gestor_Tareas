@@ -12,7 +12,7 @@ En ambos casos el despliegue de la aplicación es manual: Terraform y la consola
 - Cuenta AWS con permisos para crear/administrar los recursos que elijas.
 - AWS CLI configurada y Terraform CLI 1.6 o posterior para la ruta Terraform.
 - Docker Compose para desarrollo local no es necesario en el servidor: la instancia lo instalará.
-- Un commit de `main` cuyo CI terminó correctamente y cuyas imágenes ya se publicaron en GHCR. El workflow `CD - GHCR y despliegue aprobado` publica imágenes, pero no despliega automáticamente a esta EC2.
+- Un commit de `main` cuyo CI terminó correctamente y cuyas imágenes ya se publicaron en GHCR. El workflow `CD - GHCR y despliegue aprobado` publica imágenes automáticamente y permite un despliegue manual aprobado por SSM cuando el rol OIDC y las variables del environment `production` están configurados.
 - Permisos de lectura de GHCR si los paquetes son privados.
 
 No guardes credenciales AWS, tokens de GHCR ni secretos de la aplicación en Git, Terraform, `user-data` o comandos que los dejen en el historial. Para administrar la instancia se recomienda SSM; no hace falta abrir SSH en ninguno de los dos caminos.
@@ -271,7 +271,7 @@ Abre `http://<IP-pública>` desde una red permitida por el Security Group. El fr
 
 Selecciona otro tag `sha-<SHA-completo>` que ya esté publicado. En una nueva sesión SSH/SSM, exporta el owner y tag deseados, y repite `docker compose pull` y `docker compose up -d --remove-orphans` del paso 3/5. Para revertir, usa el tag SHA de la versión anterior. No cambies tags entre el pull y el up.
 
-El workflow CD incluido requiere SSH y no es compatible con la instancia Terraform, que deliberadamente no abre SSH. En esta guía el despliegue es manual vía SSM; no cambies el Security Group para habilitar el workflow sin una revisión separada.
+El workflow CD incluido usa OIDC y SSM Run Command, por lo que es compatible con esta instancia sin abrir SSH. Requiere configurar en el environment `production` las variables `AWS_ROLE_ARN`, `AWS_REGION` y `EC2_INSTANCE_ID`, además de un rol IAM restringido a este repositorio, entorno e instancia. No cambies el Security Group para habilitar SSH.
 
 ## Eliminar recursos y evitar costos
 
